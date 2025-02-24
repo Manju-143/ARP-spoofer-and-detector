@@ -202,6 +202,28 @@ def cleanup_requests():
         arp_request_list.cleanup(threshold=10)
         time.sleep(5)
 
+# ----------------- MITM Detection -----------------
+def detect_mitm():
+    """
+    Detects potential Man-In-The-Middle (MITM) attacks by checking if a single MAC address
+    appears to be associated with multiple IP addresses.
+    """
+    while True:
+        time.sleep(30)  # Check every 30 seconds
+        reverse_mapping = {}
+        # Build reverse mapping: MAC -> list of IPs
+        for ip, mac in IP_MAC_PAIRS.items():
+            reverse_mapping.setdefault(mac, []).append(ip)
+        # Check for a MAC address linked to multiple IPs
+        for mac, ips in reverse_mapping.items():
+            if len(ips) > 1:
+                message = f"Potential MITM detected: MAC {mac} is associated with multiple IPs: {ips}"
+                trigger_alarm(message)
+                # Optionally, auto-block the MAC address if enabled.
+                if AUTO_BLOCK:
+                    block_attacker(mac)
+
+# ----------------- Main Function -----------------
 def main():
     print("ARP Spoof Detector started. Monitoring ARP replies from all devices (excluding LOCAL_IP {}).".format(LOCAL_IP))
     logging.info("ARP Spoof Detector started. Monitoring ARP replies (excluding LOCAL_IP {}).".format(LOCAL_IP))
@@ -210,6 +232,7 @@ def main():
     threading.Thread(target=sniff_replies, daemon=True).start()
     threading.Thread(target=arp_scan, daemon=True).start()
     threading.Thread(target=cleanup_requests, daemon=True).start()
+    threading.Thread(target=detect_mitm, daemon=True).start()
     
     try:
         while True:
